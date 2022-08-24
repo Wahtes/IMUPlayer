@@ -1,4 +1,4 @@
-package com.terry.AudioFx;
+package com.demo.AudioFx;
 
 import android.content.Context;
 import android.graphics.Canvas;
@@ -6,10 +6,8 @@ import android.graphics.Paint;
 import android.graphics.Paint.Cap;
 import android.graphics.Paint.Join;
 import android.media.audiofx.Visualizer;
-import android.util.Log;
+import android.util.AttributeSet;
 import android.view.View;
-
-import java.util.Arrays;
 
 public class BaseVisualizerView extends View {
 //    public class BaseVisualizerView extends View implements Visualizer.OnDataCaptureListener{
@@ -54,9 +52,35 @@ public class BaseVisualizerView extends View {
      * It constructs the base visualizer view.
      * @param context It is the context of the view owner.
      */
-    public BaseVisualizerView(Context context) {
-        super(context);
+//    public (Context context) {
+//        super(context);
+//        Log.e("ywtttttttttttt", "");
+//
+//
+//    }
 
+    public BaseVisualizerView(Context context) {
+        this(context, null);
+    }
+
+    public BaseVisualizerView(Context context, @org.jetbrains.annotations.Nullable AttributeSet attrs) {
+//        this(context, attrs, null);
+        super(context, attrs);
+        mPaint = new Paint();
+        mPaint.setAntiAlias(true);
+        mPaint.setColor(0xFFd60d25);
+        mPaint.setStrokeJoin(Join.ROUND);
+        mPaint.setStrokeCap(Cap.ROUND);
+    }
+
+//    public BaseVisualizerView(Context context, @org.jetbrains.annotations.Nullable AttributeSet attrs, int defStyleAttr) {
+//        this(context, attrs, defStyleAttr, 0);
+//    }
+
+    @SuppressWarnings("deprecation")
+    public BaseVisualizerView(
+            Context context, @org.jetbrains.annotations.Nullable AttributeSet attrs, int defStyleAttr, int defStyleRes) {
+        super(context, attrs, defStyleAttr, defStyleRes);
         mPaint = new Paint();
         mPaint.setAntiAlias(true);
         mPaint.setColor(0xFFd60d25);

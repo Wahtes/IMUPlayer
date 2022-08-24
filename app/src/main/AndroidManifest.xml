@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.terry.AudioFx"
+    package="com.demo.AudioFx"
     android:versionCode="1"
     android:versionName="1.0" >
 
@@ -9,7 +9,7 @@
         android:label="@string/app_name" >
         <activity
             android:label="@string/app_name"
-            android:name=".AudioFxActivity"
+            android:name="com.demo.AudioFx.MainActivity"
             android:exported="true">
             <intent-filter >
                 <action android:name="android.intent.action.MAIN" />
@@ -19,7 +19,7 @@
         </activity>
     </application>
 
-    <uses-sdk android:minSdkVersion="10" />
+    <uses-sdk android:minSdkVersion="26" />
 
     <uses-permission android:name="android.permission.RECORD_AUDIO"></uses-permission>
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"></uses-permission>
