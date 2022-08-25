@@ -114,7 +114,7 @@
             android:id="@+id/tagTextView"
             android:layout_width="80dp"
             android:layout_height="wrap_content"
-            android:text="0"
+            android:text="test"
             android:textSize="18sp" />
 
     </LinearLayout>

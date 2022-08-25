@@ -26,7 +26,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -66,6 +65,7 @@ public class MainActivity extends Activity
 	private List<SingleIMUData> recorded_IMU_data = new ArrayList<>();
 	private long startTimestamp = 0;
 	private long stopTimestamp = 0;
+	private int duration;
 
 	private final SensorEventListener listener = new SensorEventListener() {
 		@Override
@@ -126,14 +126,14 @@ public class MainActivity extends Activity
 
 		buttonStart.setOnClickListener(v -> {
 			String time = ((EditText) findViewById(R.id.timeTextView)).getText().toString();
-			int seconds = 30;
+			duration = 30000;
 			try {
-				seconds = Integer.parseInt(time);
+				duration = Integer.parseInt(time) * 1000;
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
 			startRecording();
-			futureList.add(scheduledExecutorService.schedule(this::stopRecording, seconds, TimeUnit.SECONDS));
+			futureList.add(scheduledExecutorService.schedule(this::stopRecording, duration, TimeUnit.MILLISECONDS));
 		});
 //		buttonStop.setOnClickListener(v -> {
 //			stopRecording();
@@ -242,6 +242,7 @@ public class MainActivity extends Activity
 		metaData.put("systemVolume", mAudioManager.getStreamVolume(AudioManager.STREAM_MUSIC));
 		metaData.put("startTimestamp", startTimestamp);
 		metaData.put("stopTimestamp", stopTimestamp);
+		metaData.put("duration", duration);
 
 
 		String result = gson.toJson(metaData);
