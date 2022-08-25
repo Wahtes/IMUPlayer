@@ -11,7 +11,6 @@ import android.hardware.SensorManager;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.os.Bundle;
-import android.os.Handler;
 import android.os.ParcelUuid;
 import android.util.SparseArray;
 import android.widget.EditText;
@@ -23,11 +22,11 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
 
 import java.io.File;
+import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collector;
 
 public class MainActivity extends Activity
 {
@@ -35,7 +34,7 @@ public class MainActivity extends Activity
 
 	private static final float VISUALIZER_HEIGHT_DIP = 200f;
 	public static String DATA_SAVE_FOLDER;
-	private String currentFilename = "";
+	private File currentFile;
 
 
 	private MediaPlayer mMediaPlayer;
@@ -43,8 +42,39 @@ public class MainActivity extends Activity
 	BaseVisualizerView mBaseVisualizerView;
 	private TextView energyTextView;
 	private TextView volumeTextView;
+	private TextView statusTextView;
+	private TextView buttonStart;
+	private TextView buttonStop;
 	AudioManager mAudioManager;
 	boolean isRecording = false;
+	private int id_count = 0;
+
+	private SensorManager sensorManager;
+
+	private final SensorEventListener listener = new SensorEventListener() {
+		@Override
+		public void onSensorChanged(SensorEvent event) {
+			if (isRecording) {
+				saveSingleIMUData(event);
+			}
+
+			if (event.sensor.getType() == Sensor.TYPE_ACCELEROMETER) {
+				float accx = event.values[0];
+				float accy = event.values[1];
+				float accz = event.values[2];
+//				Log.e("onSensorChanged", "x:" + accx + " y:" + accy + " z:" + accz);
+				String volume = IMUPeriodicityAlgorithm.updateLinearAccData(accx, accy, accz, event.timestamp, mBaseVisualizerView);
+				if (volume != null) {
+					runOnUiThread(() -> {
+						energyTextView.setText(volume);
+						volumeTextView.setText(mAudioManager.getStreamVolume(AudioManager.STREAM_MUSIC) + "");
+					});
+				}
+			}
+		}
+		@Override
+		public void onAccuracyChanged(Sensor sensor, int accuracy) {}
+	};
 
 	public void onCreate(Bundle savedInstanceState)
 	{
@@ -59,6 +89,9 @@ public class MainActivity extends Activity
 		mBaseVisualizerView = findViewById(R.id.visualizerView);
 		energyTextView = findViewById(R.id.energyTextView);
 		volumeTextView = findViewById(R.id.volumeTextView);
+		statusTextView = findViewById(R.id.textView_status);
+		buttonStart = findViewById(R.id.btn_start);
+		buttonStop = findViewById(R.id.btn_stop);
 
 		mMediaPlayer.setOnCompletionListener(mp -> {
 			// TODO Auto-generated method stub
@@ -70,14 +103,11 @@ public class MainActivity extends Activity
 
 		initSensor();
 
-		findViewById(R.id.btn_start).setOnClickListener(v -> {
-			currentFilename = nextFilename();
-			isRecording = true;
-			// TODO 开始录音
+		buttonStart.setOnClickListener(v -> {
+			startRecording();
 		});
-		findViewById(R.id.btn_stop).setOnClickListener(v -> {
-			isRecording = false;
-			// TODO 结束录音
+		buttonStop.setOnClickListener(v -> {
+			stopRecording();
 		});
 		findViewById(R.id.btn_submit).setOnClickListener(v -> {
 			// 写入当前音量
@@ -99,40 +129,46 @@ public class MainActivity extends Activity
 		}
 	}
 
-	private SensorManager sensorManager;
-
-	private SensorEventListener listener = new SensorEventListener() {
-		@Override
-		public void onSensorChanged(SensorEvent event) {
-			float accx = event.values[0];
-			float accy = event.values[1];
-			float accz = event.values[2];
-//			Log.e("onSensorChanged", "x:" + accx + " y:" + accy + " z:" + accz);
-			if (isRecording)
-				saveSingleIMUData(accx, accy, accz);
-
-			String volume = IMUPeriodicityAlgorithm.updateLinearAccData(accx, accy, accz, event.timestamp, mBaseVisualizerView);
-			if (volume != null) {
-				runOnUiThread(() -> {
-					energyTextView.setText(volume);
-					volumeTextView.setText(mAudioManager.getStreamVolume(AudioManager.STREAM_MUSIC) + "");
-				});
-			}
+	private void startRecording() {
+		if (!isRecording) {
+			currentFile = nextFile();
+			isRecording = true;
+			statusTextView.setText("正在录制");
+			buttonStart.setEnabled(false);
+			buttonStop.setEnabled(true);
+			// TODO 开始录音
 		}
-		@Override
-		public void onAccuracyChanged(Sensor sensor, int accuracy) {}
-	};
+	}
+
+	private void stopRecording() {
+		if (isRecording) {
+			isRecording = false;
+			statusTextView.setText("未在录制");
+			buttonStart.setEnabled(true);
+			buttonStop.setEnabled(false);
+			// TODO 结束录音
+		}
+	}
 
 	private void initSensor() {
 		sensorManager = (SensorManager)getSystemService(Context.SENSOR_SERVICE);
-		Sensor sensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
-		sensorManager.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_FASTEST);
+//		Sensor sensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+//		sensorManager.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_FASTEST);
+
+		sensorManager.registerListener(listener, sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE), SensorManager.SENSOR_DELAY_FASTEST);
+		sensorManager.registerListener(listener, sensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION), SensorManager.SENSOR_DELAY_FASTEST);
+		sensorManager.registerListener(listener, sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER), SensorManager.SENSOR_DELAY_FASTEST);
+		sensorManager.registerListener(listener, sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD), SensorManager.SENSOR_DELAY_FASTEST);
 	}
 
-	private void saveSingleIMUData(float x, float y, float z) {
-		String record = String.format("%f\t%f\t%f\t%d", x, y, z, System.currentTimeMillis());
-		String pathname = DATA_SAVE_FOLDER + currentFilename;
-		FileUtils.writeStringToFile(record, new File(pathname), true);
+	private void saveSingleIMUData(SensorEvent event) {
+		String record = String.format("%d\t%d\t%f\t%f\t%f",
+				event.timestamp,
+				event.sensor.getType(),
+				event.values[0],
+				event.values[1],
+				event.values[2]);
+		FileUtils.writeStringToFile(record, currentFile, true);
 	}
 
 	private void saveMetaData() {
@@ -140,7 +176,7 @@ public class MainActivity extends Activity
 		Map<String, String> metaData = new HashMap<>();
 		metaData.put("ConfirmVolume", tag);
 		metaData.put("SystemVolume", mAudioManager.getStreamVolume(AudioManager.STREAM_MUSIC) + "");
-		String pathname = DATA_SAVE_FOLDER + currentFilename + ".meta";
+		String pathname = currentFile.getAbsolutePath() + ".meta";
 		Gson gson = new GsonBuilder().disableHtmlEscaping()
 				.registerTypeAdapter(Bundle.class, GsonUtils.bundleSerializer)
 				.registerTypeAdapter(ScanResult.class, GsonUtils.scanResultSerializer)
@@ -153,8 +189,10 @@ public class MainActivity extends Activity
 		FileUtils.writeStringToFile(result, new File(pathname), false);
 	}
 
-	private int id_count = 0;
-	public String nextFilename() {
-		return String.format("IMU_%d_%04d.txt", new Date().getTime(), id_count++);
+	public File nextFile() {
+		String dateTime = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
+		String filename = "IMU_" + dateTime + "_" + id_count++ + ".txt";
+		return new File(DATA_SAVE_FOLDER + filename);
+//		return String.format("IMU_%d_%04d.txt", new Date().getTime(), id_count++);
 	}
 }
