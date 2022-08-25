@@ -54,7 +54,7 @@ public class FileUtils {
 
     public static void writeStringToFile(String content, File saveFile, boolean append) {
         makeFile(saveFile);
-        String toWrite = content + "\r\n";
+        String toWrite = content + "\n";
         try {
             OutputStreamWriter writer = new OutputStreamWriter(new FileOutputStream(saveFile, append));
             writer.write(toWrite);

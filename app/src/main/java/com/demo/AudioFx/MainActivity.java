@@ -12,14 +12,18 @@ import android.os.Bundle;
 import android.widget.EditText;
 import android.widget.TextView;
 
+import com.demo.AudioFx.data.SingleIMUData;
 import com.demo.AudioFx.imu.IMUPeriodicityAlgorithm;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
 import java.io.File;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -52,6 +56,7 @@ public class MainActivity extends Activity
 	private SensorManager sensorManager;
 
 	private AudioCollector audioCollector;
+	private List<SingleIMUData> recorded_IMU_data = new ArrayList<>();
 
 	private final SensorEventListener listener = new SensorEventListener() {
 		@Override
@@ -150,6 +155,21 @@ public class MainActivity extends Activity
 		if (isRecording) {
 			// 结束录音
 			audioCollector.stopRecording();
+			// 存储数据到文件
+
+			StringBuilder stringBuilder = new StringBuilder();
+			for (SingleIMUData data : recorded_IMU_data) {
+				stringBuilder.append(String.format("%d\t%d\t%f\t%f\t%f",
+						data.getTimestamp(),
+						data.getType(),
+						data.getValues().get(0),
+						data.getValues().get(1),
+						data.getValues().get(2)
+				));
+				stringBuilder.append("\n");
+			}
+			FileUtils.writeStringToFile(stringBuilder.toString(), currentIMUFile);
+
 			isRecording = false;
 			statusTextView.setText("未在录制");
 			buttonStart.setEnabled(true);
@@ -159,9 +179,6 @@ public class MainActivity extends Activity
 
 	private void initSensor() {
 		sensorManager = (SensorManager)getSystemService(Context.SENSOR_SERVICE);
-//		Sensor sensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
-//		sensorManager.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_FASTEST);
-
 		sensorManager.registerListener(listener, sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE), SensorManager.SENSOR_DELAY_FASTEST);
 		sensorManager.registerListener(listener, sensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION), SensorManager.SENSOR_DELAY_FASTEST);
 		sensorManager.registerListener(listener, sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER), SensorManager.SENSOR_DELAY_FASTEST);
@@ -169,13 +186,13 @@ public class MainActivity extends Activity
 	}
 
 	private void saveSingleIMUData(SensorEvent event) {
-		String record = String.format("%d\t%d\t%f\t%f\t%f",
-				event.timestamp,
+		SingleIMUData singleIMUData = new SingleIMUData(
+				Arrays.asList(event.values[0], event.values[1], event.values[2]),
+				event.sensor.getName(),
 				event.sensor.getType(),
-				event.values[0],
-				event.values[1],
-				event.values[2]);
-		FileUtils.writeStringToFile(record, currentIMUFile, true);
+				event.timestamp
+		);
+		recorded_IMU_data.add(singleIMUData);
 	}
 
 	private void saveMetaData() {
@@ -195,7 +212,6 @@ public class MainActivity extends Activity
 		currentAudioFile = new File(prefix + "_Audio.mp3");
 		currentMetaFile = new File(prefix + "_meta.json");
 		id_count++;
-//		return new File(DATA_SAVE_FOLDER + filename);
 //		return String.format("IMU_%d_%04d.txt", new Date().getTime(), id_count++);
 	}
 }
