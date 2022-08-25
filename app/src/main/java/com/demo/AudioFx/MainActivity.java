@@ -109,8 +109,8 @@ public class MainActivity extends Activity
 //				mVisualizer.setEnabled(false);
 		});
 
-		mMediaPlayer.start();
-		mMediaPlayer.setLooping(true);
+//		mMediaPlayer.start();
+//		mMediaPlayer.setLooping(true);
 
 		initSensor();
 
@@ -150,6 +150,8 @@ public class MainActivity extends Activity
 				statusTextView.setText("正在录制");
 				buttonStart.setEnabled(false);
 				buttonStop.setEnabled(true);
+				mMediaPlayer.seekTo(0);
+				mMediaPlayer.start();
 			}
 		}
 	}
@@ -160,6 +162,7 @@ public class MainActivity extends Activity
 			audioCollector.stopRecording();
 			stopTimestamp = System.currentTimeMillis();
 			isRecording = false;
+			mMediaPlayer.pause();
 
 			// 存储数据到文件
 			StringBuilder stringBuilder = new StringBuilder();
