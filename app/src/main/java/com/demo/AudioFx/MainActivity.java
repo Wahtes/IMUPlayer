@@ -59,7 +59,7 @@ public class MainActivity extends Activity
 
 	private SensorManager sensorManager;
 	private ScheduledExecutorService scheduledExecutorService;
-	private List<ScheduledFuture<?>> futureList;
+	private ScheduledFuture<?> scheduledRecordFt;
 
 	private AudioCollector audioCollector;
 	private List<SingleIMUData> recorded_IMU_data = new ArrayList<>();
@@ -112,7 +112,6 @@ public class MainActivity extends Activity
 
 		audioCollector = new AudioCollector(mAudioManager);
 		scheduledExecutorService = new ScheduledThreadPoolExecutor(4);
-		futureList = new ArrayList<>();
 
 		mMediaPlayer.setOnCompletionListener(mp -> {
 			// TODO Auto-generated method stub
@@ -125,19 +124,11 @@ public class MainActivity extends Activity
 		initSensor();
 
 		buttonStart.setOnClickListener(v -> {
-			String time = ((EditText) findViewById(R.id.timeTextView)).getText().toString();
-			duration = 30000;
-			try {
-				duration = Integer.parseInt(time) * 1000;
-			} catch (Exception e) {
-				e.printStackTrace();
-			}
 			startRecording();
-			futureList.add(scheduledExecutorService.schedule(this::stopRecording, duration, TimeUnit.MILLISECONDS));
 		});
-//		buttonStop.setOnClickListener(v -> {
-//			stopRecording();
-//		});
+		buttonStop.setOnClickListener(v -> {
+			stopRecording();
+		});
 //		findViewById(R.id.btn_submit).setOnClickListener(v -> {
 //			// 写入当前音量
 //			saveMetaData();
@@ -160,8 +151,9 @@ public class MainActivity extends Activity
 
 	@Override
 	protected void onDestroy() {
-		for (ScheduledFuture<?> ft : futureList) {
-			ft.cancel(true);
+		if (scheduledRecordFt != null) {
+			scheduledRecordFt.cancel(true);
+			scheduledRecordFt = null;
 		}
 		scheduledExecutorService.shutdown();
 		super.onDestroy();
@@ -170,12 +162,26 @@ public class MainActivity extends Activity
 	private void startRecording() {
 		if (!isRecording) {
 			nextFile();
+			recorded_IMU_data.clear();
 			if (audioCollector.startRecording(currentAudioFile)) {
 				// 开始录音
 				startTimestamp = System.currentTimeMillis();
 				isRecording = true;
 				mMediaPlayer.seekTo(0);
 				mMediaPlayer.start();
+
+				String time = ((EditText) findViewById(R.id.timeTextView)).getText().toString();
+				duration = 30000;
+				try {
+					duration = Integer.parseInt(time) * 1000;
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
+				if (scheduledRecordFt != null) {
+					scheduledRecordFt.cancel(true);
+				}
+				scheduledRecordFt = scheduledExecutorService.schedule(this::stopRecording, duration, TimeUnit.MILLISECONDS);
+
 				runOnUiThread(() -> {
 					statusTextView.setText("正在录制");
 					buttonStart.setEnabled(false);
@@ -186,6 +192,11 @@ public class MainActivity extends Activity
 	}
 
 	private void stopRecording() {
+		if (scheduledRecordFt != null) {
+			scheduledRecordFt.cancel(false);
+			scheduledRecordFt = null;
+		}
+
 		if (isRecording) {
 			// 结束录音
 			audioCollector.stopRecording();
@@ -242,7 +253,7 @@ public class MainActivity extends Activity
 		metaData.put("systemVolume", mAudioManager.getStreamVolume(AudioManager.STREAM_MUSIC));
 		metaData.put("startTimestamp", startTimestamp);
 		metaData.put("stopTimestamp", stopTimestamp);
-		metaData.put("duration", duration);
+		metaData.put("desiredDuration", duration);
 
 
 		String result = gson.toJson(metaData);
