@@ -26,6 +26,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 public class MainActivity extends Activity
 {
@@ -54,6 +59,8 @@ public class MainActivity extends Activity
 	private int id_count = 0;
 
 	private SensorManager sensorManager;
+	private ScheduledExecutorService scheduledExecutorService;
+	private List<ScheduledFuture<?>> futureList;
 
 	private AudioCollector audioCollector;
 	private List<SingleIMUData> recorded_IMU_data = new ArrayList<>();
@@ -85,7 +92,8 @@ public class MainActivity extends Activity
 		public void onAccuracyChanged(Sensor sensor, int accuracy) {}
 	};
 
-	public void onCreate(Bundle savedInstanceState)
+	@Override
+	protected void onCreate(Bundle savedInstanceState)
 	{
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_main);
@@ -103,6 +111,8 @@ public class MainActivity extends Activity
 		buttonStop = findViewById(R.id.btn_stop);
 
 		audioCollector = new AudioCollector(mAudioManager);
+		scheduledExecutorService = new ScheduledThreadPoolExecutor(4);
+		futureList = new ArrayList<>();
 
 		mMediaPlayer.setOnCompletionListener(mp -> {
 			// TODO Auto-generated method stub
@@ -115,15 +125,23 @@ public class MainActivity extends Activity
 		initSensor();
 
 		buttonStart.setOnClickListener(v -> {
+			String time = ((EditText) findViewById(R.id.timeTextView)).getText().toString();
+			int seconds = 30;
+			try {
+				seconds = Integer.parseInt(time);
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
 			startRecording();
+			futureList.add(scheduledExecutorService.schedule(this::stopRecording, seconds, TimeUnit.SECONDS));
 		});
-		buttonStop.setOnClickListener(v -> {
-			stopRecording();
-		});
-		findViewById(R.id.btn_submit).setOnClickListener(v -> {
-			// 写入当前音量
-			saveMetaData();
-		});
+//		buttonStop.setOnClickListener(v -> {
+//			stopRecording();
+//		});
+//		findViewById(R.id.btn_submit).setOnClickListener(v -> {
+//			// 写入当前音量
+//			saveMetaData();
+//		});
 
 		DATA_SAVE_FOLDER = getExternalMediaDirs()[0].getAbsolutePath() + "/Data/IMU/";
 	}
@@ -133,11 +151,20 @@ public class MainActivity extends Activity
 	protected void onPause()
 	{
 		// TODO Auto-generated method stub
-		super.onPause();
 		if (isFinishing() && mMediaPlayer != null) {
 			mMediaPlayer.release();
 			mMediaPlayer = null;
 		}
+		super.onPause();
+	}
+
+	@Override
+	protected void onDestroy() {
+		for (ScheduledFuture<?> ft : futureList) {
+			ft.cancel(true);
+		}
+		scheduledExecutorService.shutdown();
+		super.onDestroy();
 	}
 
 	private void startRecording() {
@@ -147,11 +174,13 @@ public class MainActivity extends Activity
 				// 开始录音
 				startTimestamp = System.currentTimeMillis();
 				isRecording = true;
-				statusTextView.setText("正在录制");
-				buttonStart.setEnabled(false);
-				buttonStop.setEnabled(true);
 				mMediaPlayer.seekTo(0);
 				mMediaPlayer.start();
+				runOnUiThread(() -> {
+					statusTextView.setText("正在录制");
+					buttonStart.setEnabled(false);
+					buttonStop.setEnabled(true);
+				});
 			}
 		}
 	}
@@ -178,10 +207,13 @@ public class MainActivity extends Activity
 			}
 			FileUtils.writeStringToFile(stringBuilder.toString(), currentIMUFile);
 
+			saveMetaData();
 
-			statusTextView.setText("未在录制");
-			buttonStart.setEnabled(true);
-			buttonStop.setEnabled(false);
+			runOnUiThread(() -> {
+				statusTextView.setText("未在录制");
+				buttonStart.setEnabled(true);
+				buttonStop.setEnabled(false);
+			});
 		}
 	}
 
@@ -206,8 +238,8 @@ public class MainActivity extends Activity
 	private void saveMetaData() {
 		String tag = ((EditText) findViewById(R.id.tagTextView)).getText().toString();
 		Map<String, Object> metaData = new HashMap<>();
-		metaData.put("ConfirmVolume", tag);
-		metaData.put("SystemVolume", mAudioManager.getStreamVolume(AudioManager.STREAM_MUSIC));
+		metaData.put("tag", tag);
+		metaData.put("systemVolume", mAudioManager.getStreamVolume(AudioManager.STREAM_MUSIC));
 		metaData.put("startTimestamp", startTimestamp);
 		metaData.put("stopTimestamp", stopTimestamp);
 
