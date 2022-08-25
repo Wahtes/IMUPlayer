@@ -57,6 +57,8 @@ public class MainActivity extends Activity
 
 	private AudioCollector audioCollector;
 	private List<SingleIMUData> recorded_IMU_data = new ArrayList<>();
+	private long startTimestamp = 0;
+	private long stopTimestamp = 0;
 
 	private final SensorEventListener listener = new SensorEventListener() {
 		@Override
@@ -143,6 +145,7 @@ public class MainActivity extends Activity
 			nextFile();
 			if (audioCollector.startRecording(currentAudioFile)) {
 				// 开始录音
+				startTimestamp = System.currentTimeMillis();
 				isRecording = true;
 				statusTextView.setText("正在录制");
 				buttonStart.setEnabled(false);
@@ -155,8 +158,10 @@ public class MainActivity extends Activity
 		if (isRecording) {
 			// 结束录音
 			audioCollector.stopRecording();
-			// 存储数据到文件
+			stopTimestamp = System.currentTimeMillis();
+			isRecording = false;
 
+			// 存储数据到文件
 			StringBuilder stringBuilder = new StringBuilder();
 			for (SingleIMUData data : recorded_IMU_data) {
 				stringBuilder.append(String.format("%d\t%d\t%f\t%f\t%f",
@@ -170,7 +175,7 @@ public class MainActivity extends Activity
 			}
 			FileUtils.writeStringToFile(stringBuilder.toString(), currentIMUFile);
 
-			isRecording = false;
+
 			statusTextView.setText("未在录制");
 			buttonStart.setEnabled(true);
 			buttonStop.setEnabled(false);
@@ -197,9 +202,12 @@ public class MainActivity extends Activity
 
 	private void saveMetaData() {
 		String tag = ((EditText) findViewById(R.id.tagTextView)).getText().toString();
-		Map<String, String> metaData = new HashMap<>();
+		Map<String, Object> metaData = new HashMap<>();
 		metaData.put("ConfirmVolume", tag);
-		metaData.put("SystemVolume", mAudioManager.getStreamVolume(AudioManager.STREAM_MUSIC) + "");
+		metaData.put("SystemVolume", mAudioManager.getStreamVolume(AudioManager.STREAM_MUSIC));
+		metaData.put("startTimestamp", startTimestamp);
+		metaData.put("stopTimestamp", stopTimestamp);
+
 
 		String result = gson.toJson(metaData);
 		FileUtils.writeStringToFile(result, currentMetaFile, false);
