@@ -1,8 +1,6 @@
 package com.demo.AudioFx;
 
 import android.app.Activity;
-import android.bluetooth.BluetoothDevice;
-import android.bluetooth.le.ScanResult;
 import android.content.Context;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
@@ -11,15 +9,12 @@ import android.hardware.SensorManager;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.os.Bundle;
-import android.os.ParcelUuid;
-import android.util.SparseArray;
 import android.widget.EditText;
 import android.widget.TextView;
 
 import com.demo.AudioFx.imu.IMUPeriodicityAlgorithm;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.google.gson.reflect.TypeToken;
 
 import java.io.File;
 import java.text.SimpleDateFormat;
@@ -34,8 +29,13 @@ public class MainActivity extends Activity
 
 	private static final float VISUALIZER_HEIGHT_DIP = 200f;
 	public static String DATA_SAVE_FOLDER;
-	private File currentFile;
+	private File currentIMUFile;
+	private File currentAudioFile;
+	private File currentMetaFile;
 
+	Gson gson = new GsonBuilder().disableHtmlEscaping()
+			.registerTypeAdapter(Bundle.class, GsonUtils.bundleSerializer)
+			.create();
 
 	private MediaPlayer mMediaPlayer;
 
@@ -50,6 +50,8 @@ public class MainActivity extends Activity
 	private int id_count = 0;
 
 	private SensorManager sensorManager;
+
+	private AudioCollector audioCollector;
 
 	private final SensorEventListener listener = new SensorEventListener() {
 		@Override
@@ -93,6 +95,8 @@ public class MainActivity extends Activity
 		buttonStart = findViewById(R.id.btn_start);
 		buttonStop = findViewById(R.id.btn_stop);
 
+		audioCollector = new AudioCollector(mAudioManager);
+
 		mMediaPlayer.setOnCompletionListener(mp -> {
 			// TODO Auto-generated method stub
 //				mVisualizer.setEnabled(false);
@@ -131,22 +135,25 @@ public class MainActivity extends Activity
 
 	private void startRecording() {
 		if (!isRecording) {
-			currentFile = nextFile();
-			isRecording = true;
-			statusTextView.setText("正在录制");
-			buttonStart.setEnabled(false);
-			buttonStop.setEnabled(true);
-			// TODO 开始录音
+			nextFile();
+			if (audioCollector.startRecording(currentAudioFile)) {
+				// 开始录音
+				isRecording = true;
+				statusTextView.setText("正在录制");
+				buttonStart.setEnabled(false);
+				buttonStop.setEnabled(true);
+			}
 		}
 	}
 
 	private void stopRecording() {
 		if (isRecording) {
+			// 结束录音
+			audioCollector.stopRecording();
 			isRecording = false;
 			statusTextView.setText("未在录制");
 			buttonStart.setEnabled(true);
 			buttonStop.setEnabled(false);
-			// TODO 结束录音
 		}
 	}
 
@@ -168,7 +175,7 @@ public class MainActivity extends Activity
 				event.values[0],
 				event.values[1],
 				event.values[2]);
-		FileUtils.writeStringToFile(record, currentFile, true);
+		FileUtils.writeStringToFile(record, currentIMUFile, true);
 	}
 
 	private void saveMetaData() {
@@ -176,23 +183,19 @@ public class MainActivity extends Activity
 		Map<String, String> metaData = new HashMap<>();
 		metaData.put("ConfirmVolume", tag);
 		metaData.put("SystemVolume", mAudioManager.getStreamVolume(AudioManager.STREAM_MUSIC) + "");
-		String pathname = currentFile.getAbsolutePath() + ".meta";
-		Gson gson = new GsonBuilder().disableHtmlEscaping()
-				.registerTypeAdapter(Bundle.class, GsonUtils.bundleSerializer)
-				.registerTypeAdapter(ScanResult.class, GsonUtils.scanResultSerializer)
-				.registerTypeAdapter(new TypeToken<SparseArray<byte[]>>(){}.getType(), new GsonUtils.SparseArraySerializer<byte[]>())
-				.registerTypeAdapter(BluetoothDevice.class, GsonUtils.bluetoothDeviceSerializer)
-				.registerTypeAdapter(ParcelUuid.class, GsonUtils.parcelUuidSerializer)
-				.create();
 
 		String result = gson.toJson(metaData);
-		FileUtils.writeStringToFile(result, new File(pathname), false);
+		FileUtils.writeStringToFile(result, currentMetaFile, false);
 	}
 
-	public File nextFile() {
+	public void nextFile() {
 		String dateTime = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
-		String filename = "IMU_" + dateTime + "_" + id_count++ + ".txt";
-		return new File(DATA_SAVE_FOLDER + filename);
+		String prefix = DATA_SAVE_FOLDER + dateTime + "_" + id_count;
+		currentIMUFile = new File(prefix + "_IMU.txt");
+		currentAudioFile = new File(prefix + "_Audio.mp3");
+		currentMetaFile = new File(prefix + "_meta.json");
+		id_count++;
+//		return new File(DATA_SAVE_FOLDER + filename);
 //		return String.format("IMU_%d_%04d.txt", new Date().getTime(), id_count++);
 	}
 }
